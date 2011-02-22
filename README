@@ -1,0 +1,52 @@
+Python Video Entropy Daemon v0.0.1 (works on my machine)
+(c) 2010 by Kai Dietrich
+
+Inspired by video_entropyd by Folker Vanheusden,
+The main part actually is just a python version of Folkers code.
+http://www.vanheusden.com/ved/
+
+This software is Licensed under the
+GNU General Public License 2.0 or later.
+
+System Requirements:
+--------------------
+Python 2.6
+PyGame 1.9.1
+a video4linux device
+optional: rng-tools / rngd
+
+What it does:
+-------------
+Pyved records frames from a video4linux device, extracts the noise/entropy
+and writes it to a fifo.
+
+Pyved opens the first video4linux device it finds and records frames (720x576, RGB).
+If it finds the kernel entropy pool to be empty it starts extracting noise
+from two successive frames. Every uncorrellated change in one of the three color
+channels is considered to be a bit of physical randomness and written to
+the fifo "entropy.fifo". You can then attach rngd from the rnd-tools to this
+fifo (rngd -f -r entropy.fifo). rngd will test the noise with a FIPS 140-2 test for it's
+statistical randomness and delivers the bits to the kernel entropy buffer.
+
+How fast is it?
+---------------
+On a Pinnacle Bt878 analogue TV card, tuned to a really bad channel,
+rngd reports the following speeds (entropy bits per second):
+
+stats: HRNG source speed: (min=1.330; avg=1.783; max=4.657)Gibits/s
+stats: FIPS tests speed: (min=70.382; avg=88.529; max=89.969)Mibits/s
+
+this is frickin fast, compared to all those commercial devices
+
+It does not work, what can I do?
+--------------------------------
+a) read the code (it's not that much)
+b) fix the code
+c) tune your tv-card with a tuner application to some channel before starting pyved
+
+How can I enhance the code?
+---------------------------
+Just do it. If you like this tool, you can just set up a project somewhere
+and start collecting improvements. For me this was just some fire-and-forget
+single-task code.
+
