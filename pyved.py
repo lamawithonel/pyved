@@ -17,41 +17,68 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import sys
+import signal
+import atexit
 import time
-import struct
 import pygame
 import pygame.camera as pygcam
 import array
 import os
+import sys
+
+#set exit behavior
+def goodbye(exit_status):
+	cam.stop()
+#	if os.stat("/dev/shm/pyvrandom.fifo").st_size != 0:
+#		os.remove("/dev/shm/pyvrandom.fifo")
+	print "Exiting with status %s" % (exit_status)
 
 
-#initialiye pygame and camera
-pygame.init()
+def sig_handler(signum, frame):
+	print "Received signal %s at frame %f" % (signum, frame)
+	sys.exit(0)
+
+atexit.register(goodbye, 0)
+signal.signal(signal.SIGTERM, sig_handler)
+
+
+#initialize pygame and came
 pygcam.init()
 cams = pygcam.list_cameras()
-cam = pygcam.Camera(cams[0], (720,576))
+print pygcam.list_cameras()
+cam = pygcam.Camera(cams[0], (160, 120))
 cam.start()
 
-
 try:
-	os.mkfifo("entropy.fifo")
+	print "Creating FIFO at /dev/shm/pyvrandom.fifo with mode 0600"
+	os.mkfifo("/dev/shm/pyvrandom.fifo", 0600)
+	pass
 except OSError:
 	pass
 
-outfifo = open("entropy.fifo", "wb")
-#outfile = open("entropy.bin", "w+b")
+try:
+	print "Openning FIFO. (if this hangs here, make sure the read end is open.)"
+	outfifo = open("/dev/shm/pyvrandom.fifo", "wb", 0)
+	print "FIFO successfully opened"
+	pass
+except OSError:
+	print "FATAL ERROR: Cannot open FIFO."
+	sys.exit(1)
 
 sfc = None
 sfc_old = None
-while True:
+
+print "Entering entropy gathering loop"
+while True: 
 	entropy_needed = int(open("/proc/sys/kernel/random/write_wakeup_threshold").read().strip())
 	entropy_avail = int(open("/proc/sys/kernel/random/entropy_avail").read().strip())
+
 	if entropy_avail > entropy_needed:
+		print "Sleeping, entropy level at: %d" % entropy_avail
 		time.sleep(5)
 		continue
 	else:
-		print "Waking up, entropy level at: %d" % entropy_avail
+		print "Waking,   entropy level at: %d" % entropy_avail
 	
 	#swap images
 	sfc_old = sfc
@@ -75,18 +102,18 @@ while True:
 			x = xx*2			
 
 			#generate a difference
-			pix = sfc.get_at((x,y))
-			pix_old = sfc_old.get_at((x,y))
+			pix = sfc.get_at((x, y))
+			pix_old = sfc_old.get_at((x, y))
 			diff1 = [ abs(pix.r - pix_old.r), abs(pix.g - pix_old.g),  abs(pix.b - pix_old.b)]
 			
 			#generate another
-			pix = sfc.get_at((x+1,y))
-			pix_old = sfc_old.get_at((x+1,y))
+			pix = sfc.get_at((x+1, y))
+			pix_old = sfc_old.get_at((x+1, y))
 			diff2 = [ abs(pix.r - pix_old.r), abs(pix.g - pix_old.g), abs(pix.b - pix_old.b)]
 	
 
 			#print "%d %d" % ((diff_a[i] & 1), (diff_a[i] & 1))
-			for i in xrange(0,3):
+			for i in xrange(0, 3):
 				#the changes in the colors seem not to correlate
 				if (diff1[i] & 1) != (diff2[i] & 1):
 					#add one bit of entropy
@@ -111,4 +138,12 @@ while True:
 	sfc.lock()
 
 cam.stop()
-outfile.close()
+
+#if __name__ == "__main__":
+#	atexit.register(goodbye, 0)
+#	signal.signal(signal.SIGTERM, sig_handler)
+#	try:
+#		while True:
+#			main()
+#	except KeyboardInterrupt:
+#		goodbye()
